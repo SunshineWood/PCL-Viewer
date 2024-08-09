@@ -79,8 +79,7 @@ PCLVisualizer::~PCLVisualizer()
   delete ui;
 }
 
-void
-PCLVisualizer::initPCV()
+void PCLVisualizer::initPCV()
 {
   //设置窗口名称
   QString str = "PointCloudViewer";
@@ -292,8 +291,7 @@ PCLVisualizer::createToolBars()
   algorithmTool->addAction(HistogramAction);
 }
 
-void
-PCLVisualizer::test()
+void PCLVisualizer::test()
 {
   qDebug() << "Hello World!";
 }
@@ -405,6 +403,11 @@ PCLVisualizer::connectSS()
           &QAction::triggered,
           this,
           &PCLVisualizer::newWorkStation);
+
+  connect(ui->actionsettin,
+          &QAction::triggered,
+          this,
+          &PCLVisualizer::testComputerPoint);
 }
 
 void
@@ -707,10 +710,8 @@ PCLVisualizer::closeEvent(QCloseEvent* event)
            << this->width() << " " << this->height();
 }
 
-void
-PCLVisualizer::colorCloudDistances()
+void PCLVisualizer::colorCloudDistances()
 {
-
   double min, max;
   switch (filtering_axis_) {
     case 0: // x
@@ -1259,8 +1260,7 @@ PCLVisualizer::best_surface()
   ui->openGLWidget->update();
 }
 
-void
-PCLVisualizer::newWorkStation()
+void PCLVisualizer::newWorkStation()
 {
   PCLVisualizer* newPCV = new PCLVisualizer;
   //新建的工作窗口位于之前窗口的右下方
@@ -1268,6 +1268,14 @@ PCLVisualizer::newWorkStation()
     this->x() + 20, this->y() + 50, this->width(), this->height());
   newPCV->show();
 }
+
+
+void PCLVisualizer::testComputerPoint()
+{
+
+
+}
+
 
 void
 PCLVisualizer::on_actionBGColor_triggered()

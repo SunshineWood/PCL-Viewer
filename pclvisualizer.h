@@ -154,7 +154,7 @@ public:
   //显示log信息
   void showLogItem(QString item, QString info);
   // 保存设置
-  void saveSetting(QString name, QString item);
+  static void saveSetting(QString name, QString item);
   QVariant getSetting(QString name);
   void createActions();  //创建动作
   void createMenus();    //创建菜单
@@ -610,6 +610,8 @@ public slots:
 
   //新建工作台
   void newWorkStation();
+
+  void testComputerPoint();
 
   void test();
   //初始化数据
