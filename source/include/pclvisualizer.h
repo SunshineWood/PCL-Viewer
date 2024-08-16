@@ -129,11 +129,9 @@
 // Visualization Toolkit (VTK)
 #include <vtkRenderWindow.h>
 
-#include "inputdialog.h"
 //使用的点云格式
 typedef pcl::PointXYZRGBA PointTRGBA;
-typedef pcl::PointXYZ PointT;
-typedef pcl::PointCloud<PointT> PointCloudT;
+typedef pcl::PointCloud<pcl::PointXYZ> PointCloudT;
 typedef pcl::PointCloud<pcl::PointXYZRGBA> PointCloudTRGBA;
 
 QT_BEGIN_NAMESPACE
@@ -161,12 +159,12 @@ public:
   void createToolBars(); //创建工具栏
 
   //点云坐标极值
-  PointT p_min, p_max;
+  pcl::PointXYZ p_min, p_max;
 
   double maxLen;
 
-  double getMinValue(PointT p1, PointT p2);
-  double getMaxValue(PointT p1, PointT p2);
+  double getMinValue(pcl::PointXYZ p1, pcl::PointXYZ p2);
+  double getMaxValue(pcl::PointXYZ p1, pcl::PointXYZ p2);
 
   QString filePathWithName;
 
@@ -372,8 +370,8 @@ public:
   PointCloudT::Ptr cloud_RE; // ICP output point cloud
 
   //使用配准基类Registration来实现多态
-  pcl::Registration<PointT, PointT>::Ptr ALIGN;
-  pcl::IterativeClosestPoint<PointT, PointT>::Ptr icp;
+  pcl::Registration<pcl::PointXYZ, pcl::PointXYZ>::Ptr ALIGN;
+  pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ>::Ptr icp;
 
   //迭代次数
   int iterations = 1; // Default number of ICP iterations
@@ -434,7 +432,7 @@ public:
                 迭代最近点算法
                 配置ICP的参数,并设置只进行一次迭代，然后计算一次
 */
-  void ICP_aligin(pcl::IterativeClosestPoint<PointT, PointT>::Ptr icp,
+  void ICP_aligin(pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ>::Ptr icp,
                   PointCloudT::Ptr cloud_in,
                   PointCloudT::Ptr cloud_RE);
 
@@ -645,7 +643,7 @@ protected:
   pcl::visualization::PCLVisualizer::Ptr view;
   //创建一个共享指针用于保存点云
   //原始点云
-  PointCloudT::Ptr cloud_;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_;
   //彩色点云
   PointCloudTRGBA::Ptr cloudRGBA_;
 
@@ -728,8 +726,6 @@ private slots:
 
 private:
   Ui::PCLVisualizer* ui;
-  inputDialog* inputDlg;
-
   //软件设置
   QSettings* settings;
   QString logStr;

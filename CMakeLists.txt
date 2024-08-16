@@ -1,10 +1,12 @@
 ﻿cmake_minimum_required(VERSION 3.28)
-project(PointCloudViewer VERSION 0.1)
+project(PointCloudViewer VERSION 0.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 #add_compile_options(/std:c++14 /Zc:__cplusplus)
+include_directories(source/include)
+set(CMAKE_AUTOUIC_SEARCH_PATHS ${CMAKE_CURRENT_SOURCE_DIR}/source/ui)
 
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
@@ -46,16 +48,14 @@ find_package(Qt6 COMPONENTS
         REQUIRED)
 
 add_executable(PointCloudViewer
-        main.cpp
-        pclvisualizer.cpp
-        pclvisualizer.h
-        pclvisualizer.ui
-        # 测试
-        inputdialog.h
-        inputdialog.cpp
-        inputdialog.ui
-        images.qrc
-		logo.rc
+        source/main.cpp
+        source/pclvisualizer.cpp
+        source/include/pclvisualizer.h
+        source/ui/pclvisualizer.ui
+        source/ui/images.qrc
+        source/resource/logo.rc
+        source/PointCloudFitting/PclNurbsSurface.cpp
+        source/PointCloudFitting/PclNurbsSurface.h
 )
 
 target_link_libraries(PointCloudViewer PRIVATE Qt::Core Qt::Gui Qt::Widgets Qt::OpenGLWidgets ${LIBS})

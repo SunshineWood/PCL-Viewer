@@ -1,10 +1,8 @@
 ﻿#pragma execution_character_set("utf-8")
-
-
 #include <vtkGenericOpenGLRenderWindow.h>
 #include <QVTKOpenGLNativeWidget.h>
 #include "pclvisualizer.h"
-#include "./ui_pclvisualizer.h"
+#include "../cmake-build-debug/PointCloudViewer_autogen/include/ui_pclvisualizer.h"
 #include <QColor>
 #include <QColorDialog>
 #include <QDebug>
@@ -14,7 +12,16 @@
 #include <QTextList>
 #include <QTextStream>
 #include <vtkRenderWindow.h>
+#include <pcl/surface/on_nurbs/nurbs_data.h>
+
 #include "vtkAutoInit.h"
+#include "pointCloudFitting/PclNurbsSurface.h"
+#include <pcl/point_cloud.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/surface/on_nurbs/fitting_surface_tdm.h>
+#include <pcl/surface/on_nurbs/triangulation.h>
+
 VTK_MODULE_INIT(vtkRenderingOpenGL2);
 VTK_MODULE_INIT(vtkInteractionStyle);
 
@@ -939,7 +946,7 @@ PCLVisualizer::on_actionRight_triggered()
 }
 
 double
-PCLVisualizer::getMinValue(PointT p1, PointT p2)
+PCLVisualizer::getMinValue(pcl::PointXYZ p1, pcl::PointXYZ p2)
 {
   double min = 0;
 
@@ -956,7 +963,7 @@ PCLVisualizer::getMinValue(PointT p1, PointT p2)
 }
 
 double
-PCLVisualizer::getMaxValue(PointT p1, PointT p2)
+PCLVisualizer::getMaxValue(pcl::PointXYZ p1, pcl::PointXYZ p2)
 {
   double max = 0;
 
@@ -1168,7 +1175,7 @@ PCLVisualizer::cloudTransform(PointCloudT::Ptr cloud_in,
 }
 
 void
-PCLVisualizer::ICP_aligin(pcl::IterativeClosestPoint<PointT, PointT>::Ptr icp,
+PCLVisualizer::ICP_aligin(pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ>::Ptr icp,
                           PointCloudT::Ptr cloud_in,
                           PointCloudT::Ptr cloud_RE)
 {
@@ -1197,18 +1204,18 @@ PCLVisualizer::ICP_aligin(pcl::IterativeClosestPoint<PointT, PointT>::Ptr icp,
 void
 PCLVisualizer::best_aligin()
 {
-  icp = std::make_shared<pcl::IterativeClosestPoint<PointT, PointT>>();
+  icp = std::make_shared<pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ>>();
 
   *cloud_in = *cloud_;
   //将原始点云旋转平移
   cloudTransform(cloud_in, cloud_RE, 0, 10);
   *cloud_tr = *cloud_RE; // 在cloud_tr中备份，以供显示
 
-  pcl::visualization::PointCloudColorHandlerCustom<PointT> cloud_in_color_h(
+  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> cloud_in_color_h(
     cloud_in, 20, 20, 180);
-  pcl::visualization::PointCloudColorHandlerCustom<PointT> cloud_tr_color_h(
+  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> cloud_tr_color_h(
     cloud_tr, 250, 80, 0);
-  pcl::visualization::PointCloudColorHandlerCustom<PointT> cloud_icp_color_h(
+  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> cloud_icp_color_h(
     cloud_RE, 180, 20, 20);
   if (isCloud2) {
     view->addPointCloud(cloud_tr, cloud_tr_color_h, "cloud2");
@@ -1281,59 +1288,130 @@ void PCLVisualizer::testComputerPoint()
 
 }
 
-void PCLVisualizer::nurbsFittingComputerPoint() {
-  //从文件中读取每一行数组，并且每一个按照逗号分隔符读取数字，存入集合中
-  QStringList list;
-  QString fileName = QFileDialog::getOpenFileName(
-    this,
-    tr("Open File"),
-    "",
-    tr("Text Files (*.txt);;All Files (*)"));
+void PCLVisualizer::nurbsFittingComputerPoint()
+{
+  // QStringList list;
+  // QString fileName = QFileDialog::getOpenFileName(
+  //   this,
+  //   tr("Open File"),
+  //   "",
+  //   tr("Text Files (*.txt);;All Files (*)"));
+  //
+  // if (fileName.isEmpty())
+  //   return;
+  //
+  // QFile file(fileName);
+  // if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+  //   qDebug() << "无法打开文件";
+  //   return ;
+  // }
+  //
+  // QTextStream in(&file);
+  // QVector<pcl::PointXYZ> allPoints;
+  // while (!in.atEnd()) {
+  //   QString line = in.readLine();
+  //   QStringList fields = line.split(',');
+  //   pcl::PointXYZ point(fields[0].toFloat(), fields[1].toFloat(),fields[2].toFloat());
+  //   allPoints.append(point);
+  // }
+  // file.close();
+  //
+  // // The number of points in the cloud
+  // cloud_->resize(allPoints.count());
+  // cloudRGBA_->resize(allPoints.count());
+  // // Fill the cloud with random points
+  // for (size_t i = 0; i < allPoints.count(); ++i)
+  // {
+  //   cloud_->points[i].x = allPoints[i].x;
+  //   cloud_->points[i].y = allPoints[i].y;
+  //   cloud_->points[i].z = allPoints[i].z;
+  // }
+  // // 获取点云内的最大点和最小点
+  // pcl::getMinMax3D(*cloud_, p_min, p_max);
+  // maxLen = getMaxValue(p_max, p_min);
+  view->removeAllPointClouds();
 
-  if (fileName.isEmpty())
-    return;
+  //生成测试点云
+  int width = 50;
+  int height = 50;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  PclNurbsSurface::generateTestCloud(cloud, width, height);
+  // 保存生成的点云（可选）
+  pcl::io::savePCDFileASCII("test_cloud.pcd", *cloud);
+  qDebug()<< "Generated and saved test point cloud.";
+  //
+  // 将点云转换为 NURBS 数据结构
+  // for (int i = 0; i < height; ++i) {
+  //   for (int j = 0; j < width; ++j) {
+  //     pcl::PointXYZ &p = cloud->at(j, i);
+  //     if (i == 0 || i == height - 1 || j == 0 || j == width - 1)
+  //       data.boundary.push_back(Eigen::Vector3d(p.x, p.y, p.z));
+  //     else
+  //       data.interior.push_back(Eigen::Vector3d(p.x, p.y, p.z));
+  //   }
+  // }
 
-  QFile file(fileName);
-  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    qDebug() << "无法打开文件";
-    return ;
+  // 设置 NURBS 拟合参数
+  unsigned order = 4;
+  unsigned refinement = 5;
+  unsigned iterations = 10;
+  unsigned mesh_resolution = 50;
+
+  pcl::on_nurbs::FittingSurface::Parameter params;
+  params.interior_smoothness = 0.2;
+  params.interior_weight = 1.0;
+  params.boundary_smoothness = 0.2;
+  params.boundary_weight = 1.0;
+  //
+  // // 执行 NURBS 拟合
+  pcl::on_nurbs::NurbsDataSurface data;
+
+  for (int i = 0; i < height; ++i)
+  {
+    for (int j = 0; j < width; ++j)
+    {
+      pcl::PointXYZ &p = cloud->at(j, i);
+      if (i == 0 || i == height - 1 || j == 0 || j == width - 1)
+        data.boundary.push_back(Eigen::Vector3d(p.x, p.y, p.z));
+      else
+        data.interior.push_back(Eigen::Vector3d(p.x, p.y, p.z));
+    }
   }
 
-  QTextStream in(&file);
-  QVector<pcl::PointXYZ> allPoints;
-  while (!in.atEnd()) {
-    QString line = in.readLine();
-    QStringList fields = line.split(',');
-    pcl::PointXYZ point(fields[0].toFloat(), fields[1].toFloat(),fields[2].toFloat());
-    allPoints.append(point);
+  try {
+    if (order <= 0) {
+      throw std::invalid_argument("Invalid input parameters for initNurbsPCABoundingBox.");
+    }
+    ON_NurbsSurface nurbs = pcl::on_nurbs::FittingSurface::initNurbsPCABoundingBox(order,&data);
+  } catch (const std::exception& e) {
+    // 处理异常
+    qDebug() << "Exception caught: " << e.what();
   }
-  file.close();
+  // pcl::on_nurbs::FittingSurface fit(&data,nurbs);
+  // fit.setQuiet (true); //设置是否打印调试信息
+  // fit.refine(refinement);
+  // fit.assemble(params);
+  // fit.solve(iterations);
+  //
+  // // 获取拟合后的 NURBS 曲面
+  // nurbs = fit.m_nurbs;
+  //
+  // 创建可视化对象
+  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> single_color(cloud, 0, 255, 0); // 绿色
+  view->addPointCloud(cloud,single_color,"input_cloud");
+  //
+  // // 将 NURBS 曲面转换为网格并可视化
+  pcl::PolygonMesh mesh;
+  std::string mesh_id = "mesh_nurbs";
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr mesh_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+  std::vector<pcl::Vertices> mesh_vertices;
+  // pcl::on_nurbs::Triangulation::convertSurface2PolygonMesh(nurbs, mesh, mesh_resolution);
+  // view->addPolygonMesh(mesh, mesh_id);
 
-  // The number of points in the cloud
-  cloud_->resize(allPoints.count());
-  cloudRGBA_->resize(allPoints.count());
-  // Fill the cloud with random points
-  for (size_t i = 0; i < allPoints.count(); ++i) {
-    cloud_->points[i].x = allPoints[i].x;
-    cloud_->points[i].y = allPoints[i].y;
-    cloud_->points[i].z = allPoints[i].z;
-  }
-
-  // 获取点云内的最大点和最小点
-  pcl::getMinMax3D(*cloud_, p_min, p_max);
-  maxLen = getMaxValue(p_max, p_min);
-
-  //拷贝一份给RGBA点云
-  pcl::copyPointCloud(*cloud_, *cloudRGBA_);
-  if (isRBGA) {
-    view->updatePointCloud(cloudRGBA_, "cloud");
-  } else {
-    view->updatePointCloud(cloud_, "cloud");
-  }
+  view->setPointCloudRenderingProperties(
+    pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size,"input_cloud");
   view->resetCamera();
   view->spin();
-  view->setPointCloudRenderingProperties(
-    pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size);
   ui->openGLWidget->update();
 }
 
@@ -1607,11 +1685,11 @@ PCLVisualizer::on_actionRedo_triggered()
 
   ICP_aligin(icp, cloud_in, cloud_RE);
 
-  pcl::visualization::PointCloudColorHandlerCustom<PointT> cloud_in_color_h(
+  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> cloud_in_color_h(
     cloud_in, 20, 20, 180);
-  pcl::visualization::PointCloudColorHandlerCustom<PointT> cloud_tr_color_h(
+  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> cloud_tr_color_h(
     cloud_tr, 250, 80, 0);
-  pcl::visualization::PointCloudColorHandlerCustom<PointT> cloud_icp_color_h(
+  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> cloud_icp_color_h(
     cloud_RE, 180, 20, 20);
 
   view->updatePointCloud(cloud_RE, cloud_icp_color_h, "cloud2");
