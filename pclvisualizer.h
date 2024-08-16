@@ -613,6 +613,8 @@ public slots:
 
   void testComputerPoint();
 
+  void nurbsFittingComputerPoint();
+
   void test();
   //初始化数据
   void initPointCloud();

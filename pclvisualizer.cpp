@@ -126,8 +126,7 @@ PCLVisualizer::saveSetting(QString key, QString value)
   settings->sync();
 }
 
-QVariant
-PCLVisualizer::getSetting(QString name)
+QVariant PCLVisualizer::getSetting(QString name)
 {
   return settings->value(name);
 }
@@ -408,6 +407,13 @@ PCLVisualizer::connectSS()
           &QAction::triggered,
           this,
           &PCLVisualizer::testComputerPoint);
+
+  connect(ui->actionNURBS,
+          &QAction::triggered,
+          this,
+          &PCLVisualizer::nurbsFittingComputerPoint);
+
+
 }
 
 void
@@ -437,8 +443,7 @@ PCLVisualizer::savePCDFile()
   }
 }
 
-void
-PCLVisualizer::loadPCDFile()
+void PCLVisualizer::loadPCDFile()
 {
   QString fileFormat, fileName, fileBaseName, pointCount, filePath, fileSuffix,
     lastPath;
@@ -1274,6 +1279,62 @@ void PCLVisualizer::testComputerPoint()
 {
 
 
+}
+
+void PCLVisualizer::nurbsFittingComputerPoint() {
+  //从文件中读取每一行数组，并且每一个按照逗号分隔符读取数字，存入集合中
+  QStringList list;
+  QString fileName = QFileDialog::getOpenFileName(
+    this,
+    tr("Open File"),
+    "",
+    tr("Text Files (*.txt);;All Files (*)"));
+
+  if (fileName.isEmpty())
+    return;
+
+  QFile file(fileName);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    qDebug() << "无法打开文件";
+    return ;
+  }
+
+  QTextStream in(&file);
+  QVector<pcl::PointXYZ> allPoints;
+  while (!in.atEnd()) {
+    QString line = in.readLine();
+    QStringList fields = line.split(',');
+    pcl::PointXYZ point(fields[0].toFloat(), fields[1].toFloat(),fields[2].toFloat());
+    allPoints.append(point);
+  }
+  file.close();
+
+  // The number of points in the cloud
+  cloud_->resize(allPoints.count());
+  cloudRGBA_->resize(allPoints.count());
+  // Fill the cloud with random points
+  for (size_t i = 0; i < allPoints.count(); ++i) {
+    cloud_->points[i].x = allPoints[i].x;
+    cloud_->points[i].y = allPoints[i].y;
+    cloud_->points[i].z = allPoints[i].z;
+  }
+
+  // 获取点云内的最大点和最小点
+  pcl::getMinMax3D(*cloud_, p_min, p_max);
+  maxLen = getMaxValue(p_max, p_min);
+
+  //拷贝一份给RGBA点云
+  pcl::copyPointCloud(*cloud_, *cloudRGBA_);
+  if (isRBGA) {
+    view->updatePointCloud(cloudRGBA_, "cloud");
+  } else {
+    view->updatePointCloud(cloud_, "cloud");
+  }
+  view->resetCamera();
+  view->spin();
+  view->setPointCloudRenderingProperties(
+    pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size);
+  ui->openGLWidget->update();
 }
 
 
