@@ -12,13 +12,9 @@
 #include <QTextList>
 #include <QTextStream>
 #include <vtkRenderWindow.h>
-#include <pcl/surface/on_nurbs/nurbs_data.h>
-
 #include "vtkAutoInit.h"
+
 #include "pointCloudFitting/PclNurbsSurface.h"
-#include <pcl/point_cloud.h>
-#include <pcl/io/pcd_io.h>
-#include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/surface/on_nurbs/fitting_surface_tdm.h>
 #include <pcl/surface/on_nurbs/triangulation.h>
 
@@ -1330,84 +1326,54 @@ void PCLVisualizer::nurbsFittingComputerPoint()
   // pcl::getMinMax3D(*cloud_, p_min, p_max);
   // maxLen = getMaxValue(p_max, p_min);
   view->removeAllPointClouds();
-
-  //生成测试点云
-  int width = 50;
-  int height = 50;
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-  PclNurbsSurface::generateTestCloud(cloud, width, height);
-  // 保存生成的点云（可选）
-  pcl::io::savePCDFileASCII("test_cloud.pcd", *cloud);
-  qDebug()<< "Generated and saved test point cloud.";
   //
-  // 将点云转换为 NURBS 数据结构
-  // for (int i = 0; i < height; ++i) {
-  //   for (int j = 0; j < width; ++j) {
-  //     pcl::PointXYZ &p = cloud->at(j, i);
-  //     if (i == 0 || i == height - 1 || j == 0 || j == width - 1)
-  //       data.boundary.push_back(Eigen::Vector3d(p.x, p.y, p.z));
-  //     else
-  //       data.interior.push_back(Eigen::Vector3d(p.x, p.y, p.z));
-  //   }
+  // //生成测试点云
+  unsigned npoints (200);
+  unsigned refinement (2);
+  unsigned iterations (10);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud11(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::on_nurbs::NurbsDataSurface data;
+  data.clear_interior();
+  PclNurbsSurface::CreateCylinderPoints(cloud11, data.interior, npoints, M_PI, 100.0, 50);
+  // 保存生成的点云（可选）
+  pcl::io::savePCDFileASCII("test_cloud.pcd", *cloud11);
+  qDebug()<< "Generated and saved test point cloud.";
+
+  ON_NurbsSurface nurbs = pcl::on_nurbs::FittingSurface::initNurbsPCABoundingBox(3,&data);
+  // pcl::on_nurbs::FittingSurface fit (&data, nurbs);
+  // // //  fit.setQuiet (false);
+  pcl::on_nurbs::FittingSurface::Parameter params;
+  params.interior_smoothness = 0.1;
+  params.interior_weight = 1.0;
+  params.boundary_smoothness = 0.1;
+  params.boundary_weight = 0.0;
+
+  // NURBS refinement
+  // for (unsigned i = 0; i < refinement; i++)
+  // {
+  //   fit.refine (0);
+  //   fit.refine (1);
+  // }
+  //
+  // // fitting iterations
+  // for (unsigned i = 0; i < iterations; i++)
+  // {
+  //   fit.assemble (params);
+  //   fit.solve ();
   // }
 
-  // 设置 NURBS 拟合参数
-  unsigned order = 4;
-  unsigned refinement = 5;
-  unsigned iterations = 10;
-  unsigned mesh_resolution = 50;
-
-  pcl::on_nurbs::FittingSurface::Parameter params;
-  params.interior_smoothness = 0.2;
-  params.interior_weight = 1.0;
-  params.boundary_smoothness = 0.2;
-  params.boundary_weight = 1.0;
-  //
-  // // 执行 NURBS 拟合
-  pcl::on_nurbs::NurbsDataSurface data;
-
-  for (int i = 0; i < height; ++i)
-  {
-    for (int j = 0; j < width; ++j)
-    {
-      pcl::PointXYZ &p = cloud->at(j, i);
-      if (i == 0 || i == height - 1 || j == 0 || j == width - 1)
-        data.boundary.push_back(Eigen::Vector3d(p.x, p.y, p.z));
-      else
-        data.interior.push_back(Eigen::Vector3d(p.x, p.y, p.z));
-    }
-  }
-
-  try {
-    if (order <= 0) {
-      throw std::invalid_argument("Invalid input parameters for initNurbsPCABoundingBox.");
-    }
-    ON_NurbsSurface nurbs = pcl::on_nurbs::FittingSurface::initNurbsPCABoundingBox(order,&data);
-  } catch (const std::exception& e) {
-    // 处理异常
-    qDebug() << "Exception caught: " << e.what();
-  }
-  // pcl::on_nurbs::FittingSurface fit(&data,nurbs);
-  // fit.setQuiet (true); //设置是否打印调试信息
-  // fit.refine(refinement);
-  // fit.assemble(params);
-  // fit.solve(iterations);
-  //
-  // // 获取拟合后的 NURBS 曲面
-  // nurbs = fit.m_nurbs;
-  //
   // 创建可视化对象
-  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> single_color(cloud, 0, 255, 0); // 绿色
-  view->addPointCloud(cloud,single_color,"input_cloud");
-  //
+  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> single_color(cloud11, 0, 255, 0); // 绿色
+  view->addPointCloud(cloud11,single_color,"input_cloud");
+  // //
   // // 将 NURBS 曲面转换为网格并可视化
   pcl::PolygonMesh mesh;
   std::string mesh_id = "mesh_nurbs";
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr mesh_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
   std::vector<pcl::Vertices> mesh_vertices;
-  // pcl::on_nurbs::Triangulation::convertSurface2PolygonMesh(nurbs, mesh, mesh_resolution);
+  // pcl::on_nurbs::Triangulation::convertSurface2PolygonMesh(nurbs, mesh, 128);
   // view->addPolygonMesh(mesh, mesh_id);
-
+  //
   view->setPointCloudRenderingProperties(
     pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size,"input_cloud");
   view->resetCamera();
