@@ -1286,96 +1286,115 @@ void PCLVisualizer::testComputerPoint()
 
 void PCLVisualizer::nurbsFittingComputerPoint()
 {
-  // QStringList list;
-  // QString fileName = QFileDialog::getOpenFileName(
-  //   this,
-  //   tr("Open File"),
-  //   "",
-  //   tr("Text Files (*.txt);;All Files (*)"));
-  //
-  // if (fileName.isEmpty())
-  //   return;
-  //
-  // QFile file(fileName);
-  // if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-  //   qDebug() << "无法打开文件";
-  //   return ;
-  // }
-  //
-  // QTextStream in(&file);
-  // QVector<pcl::PointXYZ> allPoints;
-  // while (!in.atEnd()) {
-  //   QString line = in.readLine();
-  //   QStringList fields = line.split(',');
-  //   pcl::PointXYZ point(fields[0].toFloat(), fields[1].toFloat(),fields[2].toFloat());
-  //   allPoints.append(point);
-  // }
-  // file.close();
-  //
-  // // The number of points in the cloud
-  // cloud_->resize(allPoints.count());
-  // cloudRGBA_->resize(allPoints.count());
-  // // Fill the cloud with random points
-  // for (size_t i = 0; i < allPoints.count(); ++i)
-  // {
-  //   cloud_->points[i].x = allPoints[i].x;
-  //   cloud_->points[i].y = allPoints[i].y;
-  //   cloud_->points[i].z = allPoints[i].z;
-  // }
-  // // 获取点云内的最大点和最小点
-  // pcl::getMinMax3D(*cloud_, p_min, p_max);
-  // maxLen = getMaxValue(p_max, p_min);
-  view->removeAllPointClouds();
+  QStringList list;
+  QString fileName = QFileDialog::getOpenFileName(
+    this,
+    tr("Open File"),
+    "",
+    tr("Text Files (*.txt);;All Files (*)"));
+
+  if (fileName.isEmpty())
+    return;
+
+  QFile file(fileName);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    qDebug() << "无法打开文件";
+    return ;
+  }
+
+  QTextStream in(&file);
+  QVector<pcl::PointXYZ> allPoints;
+  while (!in.atEnd()) {
+    QString line = in.readLine();
+    QStringList fields = line.split(',');
+    pcl::PointXYZ point(fields[0].toFloat(), fields[1].toFloat(),fields[2].toFloat());
+    allPoints.append(point);
+  }
+  file.close();
+
+  // The number of points in the cloud
+  cloud_->resize(allPoints.count());
+  cloudRGBA_->resize(allPoints.count());
+  // Fill the cloud with random points
+  for (size_t i = 0; i < allPoints.count(); ++i)
+  {
+    cloud_->points[i].x = allPoints[i].x;
+    cloud_->points[i].y = allPoints[i].y;
+    cloud_->points[i].z = allPoints[i].z;
+  }
+  // 获取点云内的最大点和最小点
+  pcl::getMinMax3D(*cloud_, p_min, p_max);
+  maxLen = getMaxValue(p_max, p_min);
+
   //
   // //生成测试点云
-  unsigned npoints (200);
   unsigned refinement (2);
   unsigned iterations (10);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud11(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::on_nurbs::NurbsDataSurface data;
-  data.clear_interior();
-  PclNurbsSurface::CreateCylinderPoints(cloud11, data.interior, npoints, M_PI, 100.0, 50);
-  // 保存生成的点云（可选）
-  pcl::io::savePCDFileASCII("test_cloud.pcd", *cloud11);
-  qDebug()<< "Generated and saved test point cloud.";
-
+  for (const auto &p : *cloud_) {
+    if (!std::isnan(p.x) && !std::isnan(p.y) && !std::isnan(p.z))
+      data.interior.emplace_back(p.x, p.y, p.z);
+  }
   ON_NurbsSurface nurbs = pcl::on_nurbs::FittingSurface::initNurbsPCABoundingBox(3,&data);
-  // pcl::on_nurbs::FittingSurface fit (&data, nurbs);
-  // // //  fit.setQuiet (false);
+  pcl::on_nurbs::FittingSurface fit (&data, nurbs);
+  // fit.setQuiet (false);
   pcl::on_nurbs::FittingSurface::Parameter params;
   params.interior_smoothness = 0.1;
   params.interior_weight = 1.0;
   params.boundary_smoothness = 0.1;
   params.boundary_weight = 0.0;
 
-  // NURBS refinement
-  // for (unsigned i = 0; i < refinement; i++)
-  // {
-  //   fit.refine (0);
-  //   fit.refine (1);
-  // }
-  //
-  // // fitting iterations
-  // for (unsigned i = 0; i < iterations; i++)
-  // {
-  //   fit.assemble (params);
-  //   fit.solve ();
-  // }
+  //NURBS refinement
+  for (unsigned i = 0; i < refinement; i++)
+  {
+    fit.refine (0);
+    fit.refine (1);
+  }
 
+  // fitting iterations
+  for (unsigned i = 0; i < iterations; i++)
+  {
+    fit.assemble (params);
+    fit.solve ();
+  }
+
+  //拷贝一份给RGBA点云
+  pcl::copyPointCloud(*cloud_, *cloudRGBA_);
   // 创建可视化对象
-  pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> single_color(cloud11, 0, 255, 0); // 绿色
-  view->addPointCloud(cloud11,single_color,"input_cloud");
-  // //
+  if (isRBGA) {
+    view->updatePointCloud(cloudRGBA_, "cloud");
+  } else {
+    view->updatePointCloud(cloud_, "cloud");
+  }
+
   // // 将 NURBS 曲面转换为网格并可视化
+  nurbs = fit.m_nurbs;
   pcl::PolygonMesh mesh;
   std::string mesh_id = "mesh_nurbs";
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr mesh_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
-  std::vector<pcl::Vertices> mesh_vertices;
-  // pcl::on_nurbs::Triangulation::convertSurface2PolygonMesh(nurbs, mesh, 128);
-  // view->addPolygonMesh(mesh, mesh_id);
+  pcl::on_nurbs::Triangulation::convertSurface2PolygonMesh(nurbs, mesh, 128);
+  view->addPolygonMesh(mesh, mesh_id);
+
+  pcl::PointCloud<pcl::PointXYZ> cloud;
+  pcl::fromPCLPointCloud2(mesh.cloud, cloud);
+  Eigen::Vector3f center(0, 0, 0);
+  int num_points = 0;
+  // 遍历所有点
+  for (const auto& point : cloud.points)
+  {
+    center[0] += point.x;
+    center[1] += point.y;
+    center[2] += point.z;
+    num_points++;
+  }
+  // 计算平均值
+  if (num_points > 0)
+  {
+    center /= static_cast<float>(num_points);
+  }
+  qDebug() << "center: " << center[0] << " " << center[1] << " " << center[2];
   //
   view->setPointCloudRenderingProperties(
-    pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size,"input_cloud");
+    pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size,"cloud");
   view->resetCamera();
   view->spin();
   ui->openGLWidget->update();
