@@ -1,5 +1,6 @@
-# point-cloud-viewer
-Point Cloud Viewer, PCV是一款基于集成点云显示以及点云处理的软件，点云处理功能主要包括以下功能：
+# Pcl-Viewer
+
+Pcl-Viewer  是一个基于点云处理工具库PCL的点云处理及三维重建软件。
 
 1. 点云分割
 2. 点云离群点移除
@@ -29,19 +30,21 @@ Point Cloud Viewer, PCV是一款基于集成点云显示以及点云处理的软
 
 下表为本软件所采用的技术方案，读者如果想要跑通本工程，建议参考下表：
 
-| 序号 | 技术            | 采用方案                 |
-| ---- | --------------- | ------------------------ |
-| 1    | 编程语言        | C++ 11                   |
-| 2    | 点云工具库      | PCL 1.9.1                |
-| 3    | 可视化工具库    | VTK 8.1                  |
-| 4    | GUI框架         | Qt 5.13.2                |
-| 5    | IDE（开发环境） | VS2017+Qt Creator        |
-| 6    | 编译器          | MSVC 2017                |
-| 7    | 运行环境        | Windows / Linux / Mac OS |
+// pcl 1.13.1 默认flann中只支持C++ 11，所以要修改flann头文件 支持C++ 17 later，否则qt无法编译。
+
+| 序号 | 技术      | 采用方案                     |
+| ---- |---------|--------------------------|
+| 1    | 编程语言    | C++ 20                   |
+| 2    | 点云工具库   | PCL 1.13.1               |
+| 3    | 可视化工具库  | VTK 9.2.6                |
+| 4    | GUI框架   | Qt 6.7.2                 |
+| 5    | IDE（开发环境） | VS2022+Qt Creator        |
+| 6    | 编译器     | MSVC 2017                |
+| 7    | 运行环境    | Windows / Linux / Mac OS |
 
 ## Step 1 搭建环境
 
-1. 安装PCL 1.9.1，与之对应的VTK版本为VTK 8.1 。为了便于读者复现，原本想把PCL1.9.1的整个工程上传到Github项目中，奈何文件过大无法上传。于是我上传到了[CSDN](https://download.csdn.net/download/luolaihua2018/87714484)，该项目工程中已包含了VTK 8.1，读者可自行获取。
+1. 安装PCL 1.13.1，与之对应的VTK版本为VTK 9.2.6 。
 2. 安装 Cmake
 3. 安装 Qt
 4. 安装 Visual Studio 
@@ -52,88 +55,7 @@ Point Cloud Viewer, PCV是一款基于集成点云显示以及点云处理的软
 
 ![image-20230422174708306](README.assets/image-20230422174708306.png)
 
-其中最重要的是CMakeLists.txt的编写：
 
-```
-cmake_minimum_required(VERSION 3.5)
-
-project(PointCloudViewer VERSION 0.1 LANGUAGES CXX)
-
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-find_package (VTK REQUIRED)
-IF (VTK_FOUND)
-    MESSAGE(STATUS "VTK found.")
-    INCLUDE(${VTK_USE_FILE})
-ENDIF()
-
-find_package (PCL 1.7.0 REQUIRED)
-include_directories(${PCL_INCLUDE_DIRS})
-link_directories(${PCL_LIBRARY_DIRS})
-add_definitions(${PCL_DEFINITIONS})
-
-find_package(QT NAMES Qt6 Qt5 COMPONENTS Widgets REQUIRED)
-find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets REQUIRED)
-
-set(PROJECT_SOURCES
-        main.cpp
-        pclvisualizer.cpp
-        pclvisualizer.h
-        pclvisualizer.ui
-        # 测试
-        inputdialog.h
-        inputdialog.cpp
-        inputdialog.ui
-                images.qrc
-		logo.rc
-
-)
-
-if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(PointCloudViewer
-        MANUAL_FINALIZATION
-        ${PROJECT_SOURCES}
-    )
-# Define target properties for Android with Qt 6 as:
-#    set_property(TARGET PointCloudViewer APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
-#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
-# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
-else()
-    if(ANDROID)
-        add_library(PointCloudViewer SHARED
-            ${PROJECT_SOURCES}
-        )
-# Define properties for Android with Qt 5 after find_package() calls as:
-#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
-    else()
-        add_executable(PointCloudViewer
-           # 是否打开控制台
-           # WIN32
-            ${PROJECT_SOURCES}
-        )
-    endif()
-endif()
-
-target_link_libraries(PointCloudViewer PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${PCL_LIBRARIES} ${VTK_LIBRARIES})
-
-set_target_properties(PointCloudViewer PROPERTIES
-    MACOSX_BUNDLE_GUI_IDENTIFIER my.example.com
-    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-)
-
-if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(PointCloudViewer)
-endif()
-
-```
 
 具体的使用方法：
 
