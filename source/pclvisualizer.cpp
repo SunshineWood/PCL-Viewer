@@ -1376,22 +1376,22 @@ void PCLVisualizer::nurbsFittingComputerPoint()
 
   pcl::PointCloud<pcl::PointXYZ> cloud;
   pcl::fromPCLPointCloud2(mesh.cloud, cloud);
-  Eigen::Vector3f center(0, 0, 0);
-  int num_points = 0;
-  // 遍历所有点
+  Eigen::Vector4f centroid;					// 质心
+  pcl::compute3DCentroid(cloud, centroid);	// 齐次坐标，（c0,c1,c2,1）
+  pcl::PointXYZ closest_point;
+  float min_distance = std::numeric_limits<float>::max();
+
   for (const auto& point : cloud.points)
   {
-    center[0] += point.x;
-    center[1] += point.y;
-    center[2] += point.z;
-    num_points++;
+    float epsilon = 0.001f; // 定义一个很小的值作为误差范围
+    if (std::abs(point.x-centroid[0]) < epsilon && std::abs(point.y-centroid[1]) < epsilon) {
+      closest_point = point;
+    }
   }
-  // 计算平均值
-  if (num_points > 0)
-  {
-    center /= static_cast<float>(num_points);
-  }
-  qDebug() << "center: " << center[0] << " " << center[1] << " " << center[2];
+
+  qDebug() << "center: " << closest_point.x << " " << closest_point.y << " " << closest_point.z;
+
+  showLogItem("点云几何中心点",QString("center: x:%1,y:%2,z:%3").arg(closest_point.x).arg(closest_point.y).arg(closest_point.z));
   //
   view->setPointCloudRenderingProperties(
     pcl::visualization::PCL_VISUALIZER_POINT_SIZE, point_size,"cloud");
