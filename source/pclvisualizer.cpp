@@ -1326,37 +1326,48 @@ void PCLVisualizer::nurbsFittingComputerPoint()
   pcl::getMinMax3D(*cloud_, p_min, p_max);
   maxLen = getMaxValue(p_max, p_min);
 
-  //
-  // //生成测试点云
-  unsigned refinement (2);
-  unsigned iterations (10);
-  pcl::on_nurbs::NurbsDataSurface data;
-  for (const auto &p : *cloud_) {
-    if (!std::isnan(p.x) && !std::isnan(p.y) && !std::isnan(p.z))
-      data.interior.emplace_back(p.x, p.y, p.z);
-  }
-  ON_NurbsSurface nurbs = pcl::on_nurbs::FittingSurface::initNurbsPCABoundingBox(3,&data);
-  pcl::on_nurbs::FittingSurface fit (&data, nurbs);
-  // fit.setQuiet (false);
-  pcl::on_nurbs::FittingSurface::Parameter params;
-  params.interior_smoothness = 0.1;
-  params.interior_weight = 1.0;
-  params.boundary_smoothness = 0.1;
-  params.boundary_weight = 0.0;
+    //* the data should be available in cloud
+    double resolution = computeCloudResolution(cloud_);
+    // Normal estimation*
+    pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> n;
+    pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+    tree->setInputCloud(cloud_);
+    n.setInputCloud(cloud_);
+    n.setSearchMethod(tree);
+    n.setKSearch(20);
+    n.compute(*normals);
+    // normals should not contain the point normals + surface curvatures
+    // Concatenate the XYZ and normal fields*
+    pcl::PointCloud<pcl::PointNormal>::Ptr cloud_with_normals(new pcl::PointCloud<pcl::PointNormal>);
+    pcl::concatenateFields(*cloud_, *normals, *cloud_with_normals);
+    // cloud_with_normals = cloud + normals
+    // Create search tree*
+    pcl::search::KdTree<pcl::PointNormal>::Ptr tree2(new pcl::search::KdTree<pcl::PointNormal>);
+    tree2->setInputCloud(cloud_with_normals);
+    // Initialize objects
+    pcl::GreedyProjectionTriangulation<pcl::PointNormal> gp3;
+    pcl::PolygonMesh triangles;
+    // Set the maximum distance between connected points (maximum edge length)
+    gp3.setSearchRadius(5 * resolution);  //设置连接点之间的最大距离（最大边长）用于确定k近邻的球半径【默认值 0】
+    // Set typical values for the parameters
+    gp3.setMu(2.5); //设置最近邻距离的乘子，以得到每个点的最终搜索半径【默认值 0】
+    gp3.setMaximumNearestNeighbors(100); //设置搜索的最近邻点的最大数量
+    gp3.setMaximumSurfaceAngle(M_PI / 4); // 45 degrees（pi）最大平面角
+    gp3.setMinimumAngle(M_PI / 18);  // 10 degrees 每个三角的最小角度
+    gp3.setMaximumAngle(2 * M_PI / 3); // 120 degrees 每个三角的最大角度
+    gp3.setNormalConsistency(false); //如果法向量一致，设置为true
+    // Get result
+    gp3.setInputCloud(cloud_with_normals);
+    gp3.setSearchMethod(tree2);
+    gp3.reconstruct(triangles);
+    // Additional vertex information
+    std::vector<int> parts = gp3.getPartIDs();
+    std::vector<int> states = gp3.getPointStates();
+    // show
 
-  //NURBS refinement
-  for (unsigned i = 0; i < refinement; i++)
-  {
-    fit.refine (0);
-    fit.refine (1);
-  }
+    view->addPolygonMesh(triangles, "mesh");
 
-  // fitting iterations
-  for (unsigned i = 0; i < iterations; i++)
-  {
-    fit.assemble (params);
-    fit.solve ();
-  }
 
   //拷贝一份给RGBA点云
   pcl::copyPointCloud(*cloud_, *cloudRGBA_);
@@ -1367,15 +1378,9 @@ void PCLVisualizer::nurbsFittingComputerPoint()
     view->updatePointCloud(cloud_, "cloud");
   }
 
-  // // 将 NURBS 曲面转换为网格并可视化
-  nurbs = fit.m_nurbs;
-  pcl::PolygonMesh mesh;
-  std::string mesh_id = "mesh_nurbs";
-  pcl::on_nurbs::Triangulation::convertSurface2PolygonMesh(nurbs, mesh, 128);
-  view->addPolygonMesh(mesh, mesh_id);
 
   pcl::PointCloud<pcl::PointXYZ> cloud;
-  pcl::fromPCLPointCloud2(mesh.cloud, cloud);
+  pcl::fromPCLPointCloud2(triangles.cloud, cloud);
   Eigen::Vector4f centroid;					// 质心
   pcl::compute3DCentroid(cloud, centroid);	// 齐次坐标，（c0,c1,c2,1）
   pcl::PointXYZ closest_point;
